@@ -1,0 +1,37 @@
+{
+  "name": "@skyloom/helios",
+  "version": "1.0.0",
+  "description": "Libraries for working with social data on Bluesky",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc --build tsconfig.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sky-loom/helios.git"
+  },
+  "keywords": [
+    "bluesky",
+    "atproto",
+    "atprotocol"
+  ],
+  "author": "Skyloom",
+  "license": "MIT",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "bugs": {
+    "url": "https://github.com/sky-loom/helios/issues"
+  },
+  "homepage": "https://github.com/sky-loom/helios/#readme",
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@atproto/api": "^0.15.5"
+  }
+}
