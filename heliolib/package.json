@@ -32,6 +32,20 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@atproto/api": "^0.15.5"
+    "@atproto/api": "^0.15.5",
+    "@atproto/identity": "^0.4.7",
+    "@atproto/repo": "^0.8.0",
+    "@atproto/xrpc": "^0.6.12",
+    "@skyloom/blueskyclientmanager": "^1.0.1",
+    "@skyware/jetstream": "^0.2.2",
+    "@types/pg": "^8.11.14",
+    "chromadb": "^2.3.0",
+    "flexsearch": "^0.8.158",
+    "fs": "^0.0.1-security",
+    "nanoid": "^5.1.5",
+    "openai": "^4.96.0",
+    "pg": "^8.15.5",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
   }
 }

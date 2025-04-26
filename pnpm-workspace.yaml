@@ -1,0 +1,9 @@
+packages:
+  - heliokit
+  - heliolib
+
+onlyBuiltDependencies:
+  - cbor-extract
+  - protobufjs
+  - sharp
+  - sqlite3
