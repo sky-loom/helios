@@ -2,6 +2,7 @@ import { CommitCreateEvent } from "@skyware/jetstream";
 import { BskyClientManager } from "@skyloom/blueskyclientmanager";
 import { AppBskyFeedDefs, AppBskyFeedPost, ComAtprotoRepoDescribeRepo, ComAtprotoRepoStrongRef } from "@atproto/api";
 import { ThreadViewPostStrict } from "../models/ThreadViewPostStrict.js";
+import { RequestParams } from "../models/RequestParams.js";
 export function isReply(record: AppBskyFeedPost.Record) {
   if (record.reply) return true;
   return false;
@@ -80,8 +81,10 @@ export function ExtractPostView(
     | AppBskyFeedDefs.ThreadViewPost
     | AppBskyFeedDefs.NotFoundPost
     | AppBskyFeedDefs.BlockedPost
-    | { $type: string; [k: string]: unknown }
+    | { $type: string; [k: string]: unknown },
+  params: RequestParams
 ): ThreadViewPostStrict | undefined {
+  params.debugOutput && console.log("ExtractPostView");
   let retData: ThreadViewPostStrict | undefined = undefined;
   if ((threaddata as AppBskyFeedDefs.ThreadViewPost).post) {
     retData = {
@@ -91,12 +94,16 @@ export function ExtractPostView(
       parent: undefined,
     };
   }
+  params.debugOutput && console.log("ExtractPostView:Processing:" + (retData || "undefined"));
   if (retData?.post) {
+    params.debugOutput && console.log("ExtractPostView:AT Uri: " + retData.post.uri);
+
     let tvpThreadData = threaddata as AppBskyFeedDefs.ThreadViewPost;
     if (tvpThreadData.replies) {
       tvpThreadData.replies.forEach((reply) => {
-        if (reply.$type === "app.bsky.feed.threadViewPost") {
-          let replyStrict = ExtractPostView(reply);
+        params.debugOutput && console.log("ExtractPostView:Reply Type: " + reply?.$type);
+        if (reply.$type === "app.bsky.feed.defs#threadViewPost") {
+          let replyStrict = ExtractPostView(reply, params);
           if (replyStrict) {
             replyStrict.parent = retData; //iffy on if we should wire this up or not since it can create some recursive gotchas
             retData.replies.push(replyStrict);
@@ -105,8 +112,9 @@ export function ExtractPostView(
       });
     }
     if (tvpThreadData.parent) {
-      if (tvpThreadData.parent.$type === "app.bsky.feed.threadViewPost") {
-        let parentStrict = ExtractPostView(tvpThreadData.parent);
+      params.debugOutput && console.log("ExtractPostView:Parent Type: " + tvpThreadData.parent.$type);
+      if (tvpThreadData.parent.$type === "app.bsky.feed.defs#threadViewPost") {
+        let parentStrict = ExtractPostView(tvpThreadData.parent, params);
         if (parentStrict) retData.parent = parentStrict;
       }
     }
@@ -133,12 +141,16 @@ export function ExtractMinimalThreadParents(thread: ThreadViewPostStrict): MinTh
   return result;
 }
 
-export async function getThread(aturi: string, bskyClient: BskyClientManager): Promise<ThreadViewPostStrict | undefined> {
+export async function getThread(
+  aturi: string,
+  bskyClient: BskyClientManager,
+  params: RequestParams
+): Promise<ThreadViewPostStrict | undefined> {
   let data = await bskyClient.pdsgateway.app.bsky.feed.getPostThread({
     uri: aturi,
   });
   if (data.data.thread.$type === "app.bsky.feed.defs#threadViewPost") {
-    return ExtractPostView(data.data.thread);
+    return ExtractPostView(data.data.thread, params);
   }
 }
 

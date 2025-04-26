@@ -45,6 +45,7 @@
     "nanoid": "^5.1.5",
     "openai": "^4.96.0",
     "pg": "^8.15.5",
+    "safe-stable-stringify": "^2.5.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
   }

@@ -35,6 +35,7 @@ import {
 import { ComAtprotoRepoListRecords } from "@atproto/api";
 import { ThreadViewPostStrict } from "../models/ThreadViewPostStrict.js";
 import { RequestParams } from "../models/RequestParams.js";
+import { stringify } from "safe-stable-stringify";
 
 export class ApiWrapper {
   private client: BskyClientManager;
@@ -301,14 +302,18 @@ export class ApiWrapper {
     //for this request, should we use a user context or bypass?
     //get this post
     var res = await this.client.publicagent.app.bsky.feed.getPostThread({ uri: uri, depth: 1000, parentHeight: 1000 });
+    params.debugOutput && console.log("ApiWrapper:GetThread Response: ");
+    params.debugOutput && console.log(res);
     //console.log(res);
-    var postView = ExtractPostView(res.data.thread);
-    console.log("PostView: " + JSON.stringify(postView, null, 2));
+    var postView = ExtractPostView(res.data.thread, params);
+    params.debugOutput && console.log("PostView: " + stringify(postView?.record, null, 2));
     let rooturi: string | undefined;
     if (postView?.parent) {
       rooturi = postView.parent.record.reply?.root.uri;
+      params.debugOutput && console.log("PostView Parent: " + rooturi);
     } else {
       rooturi = postView?.post.uri;
+      params.debugOutput && console.log("PostView Root: " + rooturi);
     }
     //call bksy getthread
     //console.log(JSON.stringify(res.data.thread, null, 2));

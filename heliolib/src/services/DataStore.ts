@@ -275,8 +275,8 @@ LIMIT 1;
   private async searchInPostgres(recordType: string, idPattern: string, fieldFilter?: { field: string; value: any }): Promise<any[]> {
     const tableName = this.sanitizeName(recordType);
     const query = fieldFilter
-      ? `SELECT * FROM ${tableName} WHERE id LIKE $1 AND data->>$2 = $3`
-      : `SELECT * FROM ${tableName} WHERE id LIKE $1`;
+      ? `SELECT * FROM ${tableName} WHERE id LIKE $1 AND data->>$2 = $3 ORDER BY modified_at DESC`
+      : `SELECT * FROM ${tableName} WHERE id LIKE $1 ORDER BY modified_at DESC`;
     const values = fieldFilter ? [idPattern, fieldFilter.field, fieldFilter.value] : [idPattern];
 
     const result = await this.client.query(query, values);
