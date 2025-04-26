@@ -21,7 +21,7 @@ const publicAgent = new AtpAgent({
 // Main program setup
 const program = new Command();
 program
-  .name("bsky-toolkit")
+  .name("heliokit")
   .description("Command line tools for working with bluesky data")
   .version("1.0.0")
   .option("-i, --interactive", "Enter interactive mode")
