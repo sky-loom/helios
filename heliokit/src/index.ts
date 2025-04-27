@@ -48,7 +48,7 @@ const dbPath = typeof options.sqlite === "string" ? options.sqlite : undefined;
 let ds = new DataStore({
   type: "sqlite",
   sqliteConfig: {
-    filename: "./data/database.sqlite",
+    filename: "./test-output/data/database.sqlite",
   },
 });
 
@@ -458,7 +458,7 @@ addBaseOptions(
 
         handleOutput(thread, cmdOptions);
       } catch (error) {
-        console.error("Error getting thread:", error);
+        console.error("Error getting thread: " + uri + " ", error);
       }
     })
 );
@@ -763,13 +763,13 @@ snapshotCommand
 
 snapshotCommand
   .command("import <file>")
-  .option("-i, --id <id>", "Specify a custom ID for the imported snapshot")
+  .option("-t, --target <target>", "Specify a custom target ID for the imported snapshot")
   .description("Import a snapshot from a file")
   .action(async (file: string, options) => {
     try {
       const filePath = path.resolve(file);
       const snapshotData = JSON.parse(fs.readFileSync(filePath, "utf8"));
-      const id = options.id || nanoid();
+      const id = options.target || nanoid();
 
       const success = await ds.importSnapshot(id, snapshotData);
 
@@ -785,11 +785,11 @@ snapshotCommand
 
 snapshotCommand
   .command("duplicate <sourceId>")
-  .option("-i, --id <id>", "Specify a custom ID for the duplicate snapshot")
+  .option("-t, --target <target>", "Specify a custom target ID for the duplicate snapshot")
   .description("Duplicate a snapshot")
   .action(async (sourceId: string, options) => {
     try {
-      const targetId = options.id || `copy-${sourceId}-${nanoid(6)}`;
+      const targetId = options.target || `copy-${sourceId}-${nanoid(6)}`;
       const newId = await ds.duplicateSnapshot(sourceId, targetId);
 
       if (newId) {
