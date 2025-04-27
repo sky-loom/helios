@@ -281,54 +281,34 @@ export class SQLiteDataStore extends BaseDataStore {
    * Search for records by ID pattern
    */
   async searchById(recordType: string, idPattern: string, fieldFilter?: { field: string; value: any }): Promise<any[]> {
-    const db = await this.getDb();
     const tableName = this.sanitizeName(recordType);
+    const db = await this.getDb();
 
-    try {
-      // Check if table exists
-      const tableExists = await db.get("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [tableName]);
+    let query: string;
+    let values: any[];
 
-      if (!tableExists) {
-        return [];
-      }
-
-      // Base query
-      let sql = `SELECT * FROM ${tableName} WHERE id LIKE ?`;
-      const params: any[] = [`%${idPattern}%`];
-
-      // Add field filter if provided
-      if (fieldFilter) {
-        // SQLite JSON support depends on version, so we'll parse the JSON in code
-        // Get all records and filter manually
-        const rows = await db.all(sql, params);
-
-        return rows.filter((row) => {
-          const data = typeof row.data === "string" ? JSON.parse(row.data) : row.data;
-
-          // Handle nested fields with dot notation
-          const fieldParts = fieldFilter.field.split(".");
-          let currentObj = data;
-
-          for (let i = 0; i < fieldParts.length - 1; i++) {
-            if (!currentObj || typeof currentObj !== "object") {
-              return false;
-            }
-            currentObj = currentObj[fieldParts[i]];
-          }
-
-          const lastField = fieldParts[fieldParts.length - 1];
-          return (
-            currentObj && currentObj[lastField] !== undefined && JSON.stringify(currentObj[lastField]) === JSON.stringify(fieldFilter.value)
-          );
-        });
-      }
-
-      // No field filter, just get results by ID pattern
-      return await db.all(sql, params);
-    } catch (error) {
-      console.error(`Error searching ${recordType}:`, error);
-      return [];
+    if (fieldFilter) {
+      query = `SELECT * FROM ${tableName} WHERE id LIKE ? AND JSON_EXTRACT(data, '$.' || ?) = ? ORDER BY modified_at DESC`;
+      values = [idPattern, fieldFilter.field, fieldFilter.value];
+    } else {
+      query = `SELECT * FROM ${tableName} WHERE id LIKE ? ORDER BY modified_at DESC`;
+      values = [idPattern];
     }
+
+    const rows = await db.all(query, values);
+
+    // Parse the JSON data column for each row before returning
+    return rows.map((row) => {
+      if (row.data && typeof row.data === "string") {
+        try {
+          row.data = JSON.parse(row.data);
+        } catch (e) {
+          // Handle parsing error if needed
+          console.error(`Failed to parse JSON data for row with id ${row.id}:`, e);
+        }
+      }
+      return row;
+    });
   }
 
   /**

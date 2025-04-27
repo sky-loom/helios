@@ -159,12 +159,14 @@ export class DataBrowser {
     let exists = await this.ds.searchById("thread_post_view", aturl, { field: "is_root", value: true });
 
     if (exists.length == 0 || force) {
+      params.debugOutput && console.log("DataBrowser:GetThread - No thread found or Force called, fetching from API: " + aturl);
       await this.aw.GetThread(aturl, params);
       exists = await this.ds.searchById("thread_post_view", aturl, { field: "is_root", value: true });
     }
     params.debugOutput && console.log("DataBrowser:GetThread - Exists: " + exists.length);
 
     if (exists && exists.length > 0) {
+      params.debugOutput && console.log(exists[0]);
       let root_uri = (exists[0].data as ThreadPostViewDB).root_uri;
       params.debugOutput && console.log("DataBrowser:root uri:" + root_uri);
       var entries = await this.ds.returnAllLatestEntriesForThread(root_uri);
@@ -174,7 +176,7 @@ export class DataBrowser {
         context.threadFocus = new Map();
         //load every entry in entire thread into cache
         params.debugOutput && console.log("DataBrowser:ENTRIES");
-        params.debugOutput && console.log(JSON.stringify(entries, null, 2));
+        //params.debugOutput && console.log(JSON.stringify(entries, null, 2));
         for (var entry of entries) {
           //get did from key
           params.debugOutput && console.log("DataBrowser:Thread View Post Strict");

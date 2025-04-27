@@ -534,7 +534,38 @@ export class ApiWrapper {
   //     }
   //   }
   // }
-  async GetUserBlocks(did: string, params: RequestParams = new RequestParams()) {}
+  async GetUserBlocks(did: string, params: RequestParams = new RequestParams()) {
+    //get pds entry, will auto-fill from describe repo if not exists
+    let repodesc = await this.datastore.fetch<ComAtprotoRepoDescribeRepo.OutputSchema>("repo_description", did);
+    if (!repodesc) repodesc = (await this.GetRepoDescription(did)).record;
+    let pds = PDSFromRepoDesc(repodesc);
+    let records: AppBskyGraphBlock.Record[] = [];
+
+    let cursor: string | undefined = undefined;
+    let headers: HeadersMap | undefined;
+
+    do {
+      // if (headers) {
+      //   await this.RateLimit(headers);
+      // }
+      const result = await this.client.pdsagents.getAgent(pds).com.atproto.repo.listRecords({
+        repo: did,
+        collection: "app.bsky.graph.block",
+        cursor: cursor,
+      });
+      var resp: ComAtprotoRepoListRecords.Response = result;
+      params.debugOutput && console.log("ApiWrapper:GetUserBlocks Response: " + JSON.stringify(resp.data, null, 2));
+      headers = result.headers;
+      if (resp.data.records) {
+        const values: AppBskyGraphBlock.Record[] = resp.data.records.map((record) => record.value as AppBskyGraphBlock.Record);
+        console.log("ApiWrapper:GetUserBlocks Values: " + JSON.stringify(values, null, 2));
+        records.push(...values);
+      }
+      cursor = result.data.cursor;
+    } while (cursor);
+    await this.Store<AppBskyGraphBlock.Record[]>("user_blocks", did, records, params);
+    return records;
+  }
   //from all individual blocks and block lists, compose into a single view
   async GetResolvedBlocks(did: string) {}
   async GetDIDHistory(did: string, params: RequestParams = new RequestParams()) {}
