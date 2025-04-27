@@ -455,6 +455,7 @@ export class ApiWrapper {
       const result = await this.client.pdsagents.getAgent(pds).com.atproto.repo.listRecords({
         repo: did,
         collection: "app.bsky.graph.listblock",
+        cursor: cursor,
       });
       headers = result.headers;
       if (result.data.records) records.push(...result.data.records);
