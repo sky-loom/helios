@@ -43,6 +43,7 @@ async function runTestModule(modulePath: string): Promise<void> {
     }
 
     console.log(stdout);
+    console.log(stderr);
     console.log(`\n=== Completed test module: ${modulePath} ===\n`);
     return Promise.resolve();
   } catch (error) {

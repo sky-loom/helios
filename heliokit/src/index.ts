@@ -33,9 +33,16 @@ const useSQLite = !!options.sqlite;
 const dbPath = typeof options.sqlite === "string" ? options.sqlite : undefined;
 
 // Initialize services
+// let ds: DataStore = new DataStore({
+//   type: "postgresql",
+//   postgresConfig: { connectionString: process.env.DATABASE_URL_BSKYTOOLS ?? "" },
+// });
+
 let ds: DataStore = new DataStore({
-  type: "postgresql",
-  postgresConfig: { connectionString: process.env.DATABASE_URL_BSKYTOOLS ?? "" },
+  type: "flatfile",
+  flatfileConfig: {
+    baseDir: "./data-test",
+  },
 });
 
 // Declare client variables
