@@ -155,29 +155,31 @@ export class DataBrowser {
   async GetThread(aturl: string, params: RequestParams, force: boolean = false): Promise<ThreadViewPostStrict | undefined> {
     //check DB for thread entry where is_root=true at this aturl
     //todo: don't reload thread if we're just changing focus
-    params.debugOutput && console.log("GetThread - aturl: " + aturl);
+    params.debugOutput && console.log("DataBrowser:GetThread - aturl: " + aturl);
     let exists = await this.ds.searchById("thread_post_view", aturl, { field: "is_root", value: true });
 
     if (exists.length == 0 || force) {
+      params.debugOutput && console.log("DataBrowser:GetThread - No thread found or Force called, fetching from API: " + aturl);
       await this.aw.GetThread(aturl, params);
       exists = await this.ds.searchById("thread_post_view", aturl, { field: "is_root", value: true });
     }
-    params.debugOutput && console.log("GetThread - Exists: " + exists.length);
+    params.debugOutput && console.log("DataBrowser:GetThread - Exists: " + exists.length);
 
     if (exists && exists.length > 0) {
+      params.debugOutput && console.log(exists[0]);
       let root_uri = (exists[0].data as ThreadPostViewDB).root_uri;
-      params.debugOutput && console.log("root uri:" + root_uri);
+      params.debugOutput && console.log("DataBrowser:root uri:" + root_uri);
       var entries = await this.ds.returnAllLatestEntriesForThread(root_uri);
       let context = await this.contexts.GetContext(this.contexts.selectedContext);
       if (context) {
         context.threadCache = new Map();
         context.threadFocus = new Map();
         //load every entry in entire thread into cache
-        params.debugOutput && console.log("ENTRIES");
-        params.debugOutput && console.log(JSON.stringify(entries, null, 2));
+        params.debugOutput && console.log("DataBrowser:ENTRIES");
+        //params.debugOutput && console.log(JSON.stringify(entries, null, 2));
         for (var entry of entries) {
           //get did from key
-          params.debugOutput && console.log("Thread View Post Strict");
+          params.debugOutput && console.log("DataBrowser:Thread View Post Strict");
           let post = await this.BuildPostView(entry);
           let tvps: ThreadViewPostStrict = {
             post: post,
@@ -185,34 +187,34 @@ export class DataBrowser {
             replies: [],
             parent: undefined,
           };
-          params.debugOutput && console.log("TVPS Skeleton");
+          params.debugOutput && console.log("DataBrowser:TVPS Skeleton");
           params.debugOutput && console.log(tvps);
-          params.debugOutput && console.log("Adding to thread cache: " + entry.identity);
+          params.debugOutput && console.log("DataBrowser:Adding to thread cache: " + entry.identity);
           context.threadCache.set(entry.identity, tvps);
           var par = entry?.record.reply?.parent?.uri || "No Parent";
-          params.debugOutput && console.log("Cache Result: " + par + " from " + entry.identity);
+          params.debugOutput && console.log("DataBrowser:Cache Result: " + par + " from " + entry.identity);
           params.debugOutput && console.log(context.threadCache.get(par));
           params.debugOutput && console.log(context.threadCache.keys());
         }
         for (var entry of entries) {
           //wire up appropriately
-          params.debugOutput && console.log("Wiring Thread View Post Strict");
+          params.debugOutput && console.log("DataBrowser:Wiring Thread View Post Strict");
 
           if (entry.record.reply) {
             //find the entry, wire parent and child
-            params.debugOutput && console.log("Replies found for " + entry.identity);
+            params.debugOutput && console.log("DataBrowser:Replies found for " + entry.identity);
             let parent = context.threadCache.get(entry.record.reply.parent.uri);
             if (!parent && !force) {
-              params.debugOutput && console.log("Parent not found for " + entry.record.reply.parent.uri + " - " + parent);
+              params.debugOutput && console.log("DataBrowser:Parent not found for " + entry.record.reply.parent.uri + " - " + parent);
               //we should download it if we don't have it, but shouldn't it be our current post?
               //This likely means that the original post was downloaded as a single post, rather than a thread.
               //Lets force it
-              params.debugOutput && console.log("Force GetThread for " + aturl);
+              params.debugOutput && console.log("DataBrowser:Force GetThread for " + aturl);
               await this.GetThread(aturl, params, true);
-              params.debugOutput && console.log("Force GetThread Complete for " + aturl);
+              params.debugOutput && console.log("DataBrowser:Force GetThread Complete for " + aturl);
             }
             let current = context.threadCache.get(entry.identity);
-            if (!current) params.debugOutput && console.log("Current not found for " + entry.identity);
+            if (!current) params.debugOutput && console.log("DataBrowser:Current not found for " + entry.identity);
             if (parent && current) {
               parent.replies.push(current);
               current.parent = parent;
@@ -221,10 +223,10 @@ export class DataBrowser {
         }
         let focus = context.threadCache.get(aturl);
         if (focus) {
-          params.debugOutput && console.log("Focus Post Selected - Building");
+          params.debugOutput && console.log("DataBrowser:Focus Post Selected - Building");
           params.debugOutput && console.log(focus);
           let focusClone = this.BuildFocusPost(focus, focus, "root", params);
-          params.debugOutput && console.log("Focus Post Selected - Clone");
+          params.debugOutput && console.log("DataBrowser:Focus Post Selected - Clone");
           params.debugOutput && console.log(focus);
           context.threadFocus.set(aturl, focusClone);
         }
@@ -245,7 +247,7 @@ export class DataBrowser {
       let rootClone: ThreadViewPostStrict = { ...atPost };
       //go up and down
       if (rootClone.parent) {
-        params.debugOutput && console.log("Focus Post:Parent found, going up");
+        params.debugOutput && console.log("DataBrowser:Focus Post:Parent found, going up");
         this.BuildFocusPost(rootClone.parent, rootClone, "up", params);
       }
       if (rootClone.replies.length > 0) {
@@ -254,13 +256,13 @@ export class DataBrowser {
         //new object
         rootClone.replies = [];
         for (let child of replies) {
-          params.debugOutput && console.log("Focus Post:Child found, going down");
+          params.debugOutput && console.log("DataBrowser:Focus Post:Child found, going down");
           this.BuildFocusPost(child, rootClone, "down", params);
         }
       }
       return rootClone;
     } else if (dir == "up") {
-      params.debugOutput && console.log("Focus Post:Processing Parent");
+      params.debugOutput && console.log("DataBrowser:Focus Post:Processing Parent");
       //clone the parent, remove replies
       let parentClone: ThreadViewPostStrict = { ...atPost, replies: [] };
       //reset child parent to this one
@@ -269,14 +271,14 @@ export class DataBrowser {
       if (parentClone.parent) this.BuildFocusPost(parentClone.parent, parentClone, "up", params);
       return parentClone;
     } else if (dir == "down") {
-      params.debugOutput && console.log("Focus Post:Processing Child");
+      params.debugOutput && console.log("DataBrowser:Focus Post:Processing Child");
       let childClone: ThreadViewPostStrict = { ...atPost, parent: undefined, replies: [] };
       if (lastAt) lastAt.replies.push(childClone);
 
       let replies: ThreadViewPostStrict[] = atPost.replies;
       //atPost.replies = [];
       for (let child of replies) {
-        params.debugOutput && console.log("Focus Post:Child:Child found, going down");
+        params.debugOutput && console.log("DataBrowser:Focus Post:Child:Child found, going down");
         this.BuildFocusPost(child, childClone, "down", params);
       }
       return childClone;

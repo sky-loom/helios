@@ -64,8 +64,13 @@ export class ApiWrapper {
 
     //save skeleton entry
     if (!requestParams.dryRun) {
-      !requestParams.dryRun && (await this.datastore.save(tableName, id, data as object, requestParams.snapshotSet));
-      await this.datastore.save("entry", entrydb.identity, entrydb, requestParams.snapshotSet);
+      var res = await this.datastore.save(tableName, id, data as object, requestParams.snapshotSet);
+      !res && requestParams.debugOutput && console.log(`ApiWrapper:Not Stored ${tableName} entry: ${id}`);
+      res = await this.datastore.save("entry", entrydb.identity, entrydb, requestParams.snapshotSet);
+      !res && requestParams.debugOutput && console.log(`ApiWrapper:Entry Not Stored ${tableName} entry: ${id}`);
+      if (res) {
+        requestParams.debugOutput && console.log(`ApiWrapper:Stored ${tableName} entry: ${id}`);
+      }
       return Entry.create<T>(entrydb, data);
     }
     //create full entry
@@ -121,7 +126,7 @@ export class ApiWrapper {
         response.data.push(epd);
       }
 
-      console.log(`Follower page - ${response.cursor} of page ${atPage}/${params.pageCount}`);
+      console.log(`ApiWrapper:Follower page - ${response.cursor} of page ${atPage}/${params.pageCount}`);
       //console.log(followers);
       if (cursor) {
         response.cursor = cursor; // Set cursor for the next request
@@ -148,7 +153,7 @@ export class ApiWrapper {
     if (!repodesc) repodesc = (await this.GetRepoDescription(did)).record;
 
     const pds = PDSFromRepoDesc(repodesc);
-    params.debugOutput && console.log(`Fetching follows from PDS: ${pds} for user ${did}`);
+    params.debugOutput && console.log(`ApiWrapper:Fetching follows from PDS: ${pds} for user ${did}`);
 
     // Initialize response
     let response = new PageResponse<Entry<AppBskyGraphFollow.Record>>();
@@ -196,7 +201,8 @@ export class ApiWrapper {
           }
         }
 
-        params.debugOutput && console.log(`Follow page ${atPage}/${params.pageCount}, fetched ${result.data.records?.length || 0} records`);
+        params.debugOutput &&
+          console.log(`ApiWrapper:Follow page ${atPage}/${params.pageCount}, fetched ${result.data.records?.length || 0} records`);
 
         if (result.data.cursor) {
           response.cursor = result.data.cursor;
@@ -205,7 +211,7 @@ export class ApiWrapper {
           response.cursor = undefined;
         }
       } catch (error) {
-        console.error(`Error fetching follows for ${did}:`, error);
+        console.error(`ApiWrapper:Error fetching follows for ${did}:`, error);
         hasNextPage = false;
       }
     }
@@ -306,14 +312,14 @@ export class ApiWrapper {
     params.debugOutput && console.log(res);
     //console.log(res);
     var postView = ExtractPostView(res.data.thread, params);
-    params.debugOutput && console.log("PostView: " + stringify(postView?.record, null, 2));
+    params.debugOutput && console.log("ApiWrapper:PostView: " + stringify(postView?.record, null, 2));
     let rooturi: string | undefined;
     if (postView?.parent) {
       rooturi = postView.parent.record.reply?.root.uri;
-      params.debugOutput && console.log("PostView Parent: " + rooturi);
+      params.debugOutput && console.log("ApiWrapper:PostView Parent: " + rooturi);
     } else {
       rooturi = postView?.post.uri;
-      params.debugOutput && console.log("PostView Root: " + rooturi);
+      params.debugOutput && console.log("ApiWrapper:PostView Root: " + rooturi);
     }
     //call bksy getthread
     //console.log(JSON.stringify(res.data.thread, null, 2));
@@ -336,7 +342,7 @@ export class ApiWrapper {
     params: RequestParams = new RequestParams()
   ) {
     //let item = parsed.record as AtPostRecord;
-    console.log("Recursively storing thread posts: " + post.post.uri);
+    console.log("ApiWrapper:Recursively storing thread posts: " + post.post.uri);
     //console.log(post);
     let record = await this.Store<AppBskyFeedPost.Record>("post", post.post.uri, post.post.record as AppBskyFeedPost.Record, params);
     //store author info
@@ -449,6 +455,7 @@ export class ApiWrapper {
       const result = await this.client.pdsagents.getAgent(pds).com.atproto.repo.listRecords({
         repo: did,
         collection: "app.bsky.graph.listblock",
+        cursor: cursor,
       });
       headers = result.headers;
       if (result.data.records) records.push(...result.data.records);
@@ -488,8 +495,8 @@ export class ApiWrapper {
    * @returns {Promise<Uint8Array>} The binary image data
    */
   async GetImageBlob(did: string, cid: string, params: RequestParams = new RequestParams()): Promise<Uint8Array> {
-    console.log("did: " + did);
-    console.log("cid: " + cid);
+    console.log("ApiWrapper:did: " + did);
+    console.log("ApiWrapper:cid: " + cid);
     let repodesc = await this.datastore.fetch<ComAtprotoRepoDescribeRepo.OutputSchema>("repo_description", did);
     if (!repodesc) repodesc = (await this.GetRepoDescription(did)).record;
     let pds = PDSFromRepoDesc(repodesc);
@@ -528,7 +535,38 @@ export class ApiWrapper {
   //     }
   //   }
   // }
-  async GetUserBlocks(did: string, params: RequestParams = new RequestParams()) {}
+  async GetUserBlocks(did: string, params: RequestParams = new RequestParams()) {
+    //get pds entry, will auto-fill from describe repo if not exists
+    let repodesc = await this.datastore.fetch<ComAtprotoRepoDescribeRepo.OutputSchema>("repo_description", did);
+    if (!repodesc) repodesc = (await this.GetRepoDescription(did)).record;
+    let pds = PDSFromRepoDesc(repodesc);
+    let records: AppBskyGraphBlock.Record[] = [];
+
+    let cursor: string | undefined = undefined;
+    let headers: HeadersMap | undefined;
+
+    do {
+      // if (headers) {
+      //   await this.RateLimit(headers);
+      // }
+      const result = await this.client.pdsagents.getAgent(pds).com.atproto.repo.listRecords({
+        repo: did,
+        collection: "app.bsky.graph.block",
+        cursor: cursor,
+      });
+      var resp: ComAtprotoRepoListRecords.Response = result;
+      params.debugOutput && console.log("ApiWrapper:GetUserBlocks Response: " + JSON.stringify(resp.data, null, 2));
+      headers = result.headers;
+      if (resp.data.records) {
+        const values: AppBskyGraphBlock.Record[] = resp.data.records.map((record) => record.value as AppBskyGraphBlock.Record);
+        console.log("ApiWrapper:GetUserBlocks Values: " + JSON.stringify(values, null, 2));
+        records.push(...values);
+      }
+      cursor = result.data.cursor;
+    } while (cursor);
+    await this.Store<AppBskyGraphBlock.Record[]>("user_blocks", did, records, params);
+    return records;
+  }
   //from all individual blocks and block lists, compose into a single view
   async GetResolvedBlocks(did: string) {}
   async GetDIDHistory(did: string, params: RequestParams = new RequestParams()) {}
@@ -551,34 +589,34 @@ export class ApiWrapper {
       // Check if it's a valid Bluesky URL
       const urlObj = new URL(url);
       if (!urlObj.hostname.includes("bsky.app") || !urlObj.pathname.startsWith("/profile/")) {
-        throw new Error("Not a valid Bluesky URL");
+        throw new Error("ApiWrapper:Not a valid Bluesky URL");
       }
 
       // Extract handle and post identifier from the URL path
       const pathParts = urlObj.pathname.split("/");
       if (pathParts.length < 5 || pathParts[3] !== "post") {
-        throw new Error("Invalid Bluesky post URL format");
+        throw new Error("ApiWrapper:Invalid Bluesky post URL format");
       }
 
       const handle = pathParts[2];
       const postId = pathParts[4];
 
       // Translate handle to DID
-      params.debugOutput && console.log(`Resolving handle ${handle} to DID`);
+      params.debugOutput && console.log(`ApiWrapper:Resolving handle ${handle} to DID`);
       const did = await this.GetDidFromHandle(handle);
 
       if (!did) {
-        throw new Error(`Could not resolve handle: ${handle}`);
+        throw new Error(`ApiWrapper:Could not resolve handle: ${handle}`);
       }
 
       // Construct the post URI
       const postUri = `at://${did}/app.bsky.feed.post/${postId}`;
-      params.debugOutput && console.log(`Fetching post with URI: ${postUri}`);
+      params.debugOutput && console.log(`ApiWrapper:Fetching post with URI: ${postUri}`);
 
       // Fetch the post using the constructed URI
       return await this.GetPost(postUri, params);
     } catch (error) {
-      console.error("Error retrieving post from URL:", error);
+      console.error("ApiWrapper:Error retrieving post from URL:", error);
       return undefined;
     }
   }
@@ -610,9 +648,9 @@ export class ApiWrapper {
     var handle = "";
     if (didDoc && didDoc.alsoKnownAs && didDoc.alsoKnownAs.length > 0) handle = didDoc.alsoKnownAs[0].replace("at://", "");
 
-    params.debugOutput && console.log("Handle: " + handle);
+    params.debugOutput && console.log("ApiWrapper:Handle: " + handle);
 
-    params.debugOutput && console.log("Downloading PDS Repo..." + did + " from " + pds);
+    params.debugOutput && console.log("ApiWrapper:Downloading PDS Repo..." + did + " from " + pds);
     const repoResponse = await this.client.pdsagents.getAgent(pds).com.atproto.sync.getRepo({
       did,
     });
@@ -701,7 +739,7 @@ export class ApiWrapper {
           break;
 
         default:
-          params.debugOutput && console.log("ERROR: " + write.collection);
+          params.debugOutput && console.log("ApiWrapper:ERROR: " + write.collection);
       }
     }
 

@@ -3,6 +3,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
+import chalk from "chalk";
 
 const execAsync = promisify(exec);
 
@@ -33,20 +34,23 @@ async function ensureOutputDir() {
 
 // Helper function to run a test module
 async function runTestModule(modulePath: string): Promise<void> {
-  console.log(`\n=== Running test module: ${modulePath} ===\n`);
+  console.log(chalk.bgBlueBright(`\n=== Running test module: ${modulePath} ===\n`));
 
   try {
     const { stdout, stderr } = await execAsync(`node ${modulePath}`);
 
     if (stderr) {
-      console.error(`Error in test module ${modulePath}:`, stderr);
+      console.log(stdout);
+      console.error(chalk.redBright(`Error in test module ${modulePath}:`, stderr));
+    } else {
+      console.log(stdout);
+      console.log(chalk.redBright(stderr));
     }
 
-    console.log(stdout);
-    console.log(`\n=== Completed test module: ${modulePath} ===\n`);
+    console.log(chalk.blue(`\n=== Completed test module: ${modulePath} ===\n`));
     return Promise.resolve();
   } catch (error) {
-    console.error(`Test module ${modulePath} failed:`, error);
+    console.error(chalk.redBright(`Test module ${modulePath} failed:`), error);
     return Promise.resolve(); // Continue with other modules even if one fails
   }
 }

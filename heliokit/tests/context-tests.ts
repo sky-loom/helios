@@ -3,6 +3,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
+import chalk from "chalk";
 
 const execAsync = promisify(exec);
 
@@ -27,8 +28,8 @@ async function ensureOutputDir() {
 
 // Helper function to run a command and log the result
 async function runCommand(command: string, description: string): Promise<void> {
-  console.log(`\n=== Testing: ${description} ===`);
-  console.log(`Command: ${command}`);
+  console.log(chalk.green(`\n=== Testing: ${description} ===`));
+  console.log(chalk.cyanBright(`Command: ${command}`));
 
   try {
     const { stdout, stderr } = await execAsync(command);
