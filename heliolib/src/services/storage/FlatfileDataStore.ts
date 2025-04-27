@@ -8,6 +8,39 @@ import { nanoid } from "nanoid";
 import { ThreadPostViewDB } from "../../utils/bskyutils.js";
 
 /**
+ * Interface representing stored data in the data store with metadata
+ * This provides a common structure across all implementations
+ */
+export interface StorageData<T> {
+  /** The original data stored by the user */
+  data: T;
+
+  /** Hash of the data for integrity verification */
+  hash: string;
+
+  /** ISO timestamp when the record was created */
+  createdAt: string;
+
+  /** ISO timestamp when the record was last modified */
+  modifiedAt: string;
+
+  /** Original ID of the record */
+  id: string;
+
+  /** Filesystem-safe ID (used by file-based implementations) */
+  safeId?: string;
+
+  /** Version identifier for the record */
+  version: string;
+
+  /** Snapshot set this record belongs to */
+  snapshotset: string;
+
+  /** Filesystem-safe snapshot set ID (used by file-based implementations) */
+  safeSnapshotset?: string;
+}
+
+/**
  * Flatfile implementation of DataStore
  */
 export class FlatfileDataStore extends BaseDataStore {
@@ -21,6 +54,14 @@ export class FlatfileDataStore extends BaseDataStore {
     }
 
     this.baseDir = config.flatfileConfig.baseDir;
+  }
+
+  /**
+   * Sanitize an ID for safe use as a filename
+   * Replaces problematic characters with safe alternatives
+   */
+  private sanitizeId(id: string): string {
+    return id.replace(/[\\/:*?"<>|]/g, "_");
   }
 
   /**
@@ -38,6 +79,10 @@ export class FlatfileDataStore extends BaseDataStore {
     const modifiedAt = createdAt;
     let hash = "";
 
+    // Sanitize IDs for filesystem safety
+    const safeId = this.sanitizeId(id);
+    const safeSnapshotset = this.sanitizeId(snapshotset);
+
     // Create directories
     const folderPath = path.join(this.baseDir, recordType);
     await fs.mkdir(folderPath, { recursive: true });
@@ -46,7 +91,7 @@ export class FlatfileDataStore extends BaseDataStore {
     const snapshotsDir = path.join(this.baseDir, "snapshots");
     await fs.mkdir(snapshotsDir, { recursive: true });
 
-    const snapshotDir = path.join(snapshotsDir, snapshotset);
+    const snapshotDir = path.join(snapshotsDir, safeSnapshotset);
     await fs.mkdir(snapshotDir, { recursive: true });
 
     // Create snapshot metadata file if it doesn't exist
@@ -58,7 +103,8 @@ export class FlatfileDataStore extends BaseDataStore {
         snapshotMetaPath,
         JSON.stringify(
           {
-            id: snapshotset,
+            id: snapshotset, // Store original ID
+            safeId: safeSnapshotset,
             createdAt: createdAt,
             modifiedAt: modifiedAt,
           },
@@ -69,7 +115,7 @@ export class FlatfileDataStore extends BaseDataStore {
     }
 
     // Calculate hash based on previous data if it exists
-    const resultPath = path.join(folderPath, `${id}-latest.json`);
+    const resultPath = path.join(folderPath, `${safeId}-latest.json`);
     try {
       const previousDataStr = await fs.readFile(resultPath, "utf-8");
       const previousData = JSON.parse(previousDataStr);
@@ -82,30 +128,30 @@ export class FlatfileDataStore extends BaseDataStore {
       hash = this.createHash(data);
     }
 
-    const extendedData = {
-      ...(data as object),
+    const extendedData: StorageData<T> = {
+      data,
       hash,
       createdAt,
       modifiedAt,
-      id,
+      id, // Store the original ID for reference
+      safeId, // Store sanitized ID
       version: newVersion,
       snapshotset,
+      safeSnapshotset,
     };
 
     // Save versioned file
-    const filePath = path.join(folderPath, `${id}-${newVersion}.json`);
-    console.log(`Saving data to ${filePath}`);
+    const filePath = path.join(folderPath, `${safeId}-${newVersion}.json`);
     await fs.writeFile(filePath, JSON.stringify(extendedData, null, 2));
 
     // Save latest version
-    console.log(`Saving latest version to ${resultPath}`);
     await fs.writeFile(resultPath, JSON.stringify(extendedData, null, 2));
 
     // Save to snapshot directory
     const snapshotRecordDir = path.join(snapshotDir, recordType);
     await fs.mkdir(snapshotRecordDir, { recursive: true });
 
-    const snapshotFilePath = path.join(snapshotRecordDir, `${id}.json`);
+    const snapshotFilePath = path.join(snapshotRecordDir, `${safeId}.json`);
     await fs.writeFile(snapshotFilePath, JSON.stringify(extendedData, null, 2));
 
     return { id, version: newVersion, hash };
@@ -116,12 +162,13 @@ export class FlatfileDataStore extends BaseDataStore {
    */
   async fetch<T>(recordType: string, id: string, version?: string): Promise<T | undefined> {
     const folderPath = path.join(this.baseDir, recordType);
+    const safeId = this.sanitizeId(id);
 
     let filePath: string;
     if (version) {
-      filePath = path.join(folderPath, `${id}-${version}.json`);
+      filePath = path.join(folderPath, `${safeId}-${version}.json`);
     } else {
-      filePath = path.join(folderPath, `${id}-latest.json`);
+      filePath = path.join(folderPath, `${safeId}-latest.json`);
     }
 
     try {
@@ -148,7 +195,8 @@ export class FlatfileDataStore extends BaseDataStore {
     // Attempt to find the entry metadata
     try {
       const entryFolderPath = path.join(this.baseDir, "entry");
-      const entryFilePath = path.join(entryFolderPath, `${id}-latest.json`);
+      const safeId = this.sanitizeId(id);
+      const entryFilePath = path.join(entryFolderPath, `${safeId}-latest.json`);
 
       const entryDataStr = await fs.readFile(entryFilePath, "utf-8");
       const entryData = JSON.parse(entryDataStr) as EntryDB;
@@ -180,17 +228,25 @@ export class FlatfileDataStore extends BaseDataStore {
         // Skip non-JSON files
         if (!file.endsWith(".json")) continue;
 
-        // Parse ID from filename (format: id-version.json or id-latest.json)
+        // Parse ID from filename (format: safeId-version.json or safeId-latest.json)
         const match = file.match(/^(.+?)-([^-]+)\.json$/);
         if (match) {
-          const [, fileId, fileVersion] = match;
+          const [, fileSafeId, fileVersion] = match;
 
-          // Check if ID matches pattern
-          if (fileId.includes(idPattern)) {
-            // If this is a "latest" file or we haven't seen this ID yet
-            if (fileVersion === "latest" || !latestVersions.has(fileId)) {
-              latestVersions.set(fileId, file);
+          try {
+            // Read the file to get the original ID for pattern matching
+            const filePath = path.join(folderPath, file);
+            const content = JSON.parse(await fs.readFile(filePath, "utf-8"));
+
+            // Check if original ID matches pattern
+            if (content.id && content.id.includes(idPattern)) {
+              // If this is a "latest" file or we haven't seen this ID yet
+              if (fileVersion === "latest" || !latestVersions.has(fileSafeId)) {
+                latestVersions.set(fileSafeId, file);
+              }
             }
+          } catch (error) {
+            console.error(`Error reading file ${file}:`, error);
           }
         }
       }
@@ -267,7 +323,8 @@ export class FlatfileDataStore extends BaseDataStore {
     for (const record of records) {
       try {
         const entryFolderPath = path.join(this.baseDir, "entry");
-        const entryFilePath = path.join(entryFolderPath, `${record.id}-latest.json`);
+        const safeId = record.safeId || this.sanitizeId(record.id);
+        const entryFilePath = path.join(entryFolderPath, `${safeId}-latest.json`);
 
         const entryDataStr = await fs.readFile(entryFilePath, "utf-8");
         const entryData = JSON.parse(entryDataStr) as EntryDB;
@@ -317,7 +374,8 @@ export class FlatfileDataStore extends BaseDataStore {
         if (post) {
           try {
             const entryFolderPath = path.join(this.baseDir, "entry");
-            const entryFilePath = path.join(entryFolderPath, `${postId}-latest.json`);
+            const safeId = this.sanitizeId(postId);
+            const entryFilePath = path.join(entryFolderPath, `${safeId}-latest.json`);
 
             const entryDataStr = await fs.readFile(entryFilePath, "utf-8");
             const entryData = JSON.parse(entryDataStr) as EntryDB;
@@ -347,15 +405,8 @@ export class FlatfileDataStore extends BaseDataStore {
   async getThread(uri: string): Promise<any[]> {
     try {
       // Find the thread post view for this URI
-      const threadPostView = await this.fetch<{
-        data: ThreadPostViewDB;
-        hash: string;
-        createdAt: string;
-        modifiedAt: string;
-        id: string;
-        version: string;
-        snapshotset: string;
-      }>("thread_post_view", uri);
+      const safeUri = this.sanitizeId(uri);
+      const threadPostView = await this.fetch<ThreadPostViewDB>("thread_post_view", uri);
 
       if (!threadPostView) {
         return [];
@@ -365,21 +416,12 @@ export class FlatfileDataStore extends BaseDataStore {
       const result = [threadPostView];
 
       // Get parent posts recursively
-      let currentParentUri = threadPostView.data?.parent;
+      let currentParentUri = threadPostView?.parent;
       while (currentParentUri) {
-        const parentView = await this.fetch<{
-          data: ThreadPostViewDB;
-          hash: string;
-          createdAt: string;
-          modifiedAt: string;
-          id: string;
-          version: string;
-          snapshotset: string;
-        }>("thread_post_view", currentParentUri);
-        const data = parentView?.data as ThreadPostViewDB;
+        const parentView = await this.fetch<ThreadPostViewDB>("thread_post_view", currentParentUri);
         if (parentView) {
           result.push(parentView);
-          currentParentUri = parentView.data?.parent;
+          currentParentUri = parentView?.parent;
         } else {
           break;
         }
@@ -392,15 +434,7 @@ export class FlatfileDataStore extends BaseDataStore {
         }
 
         for (const replyUri of postView.data.replies) {
-          const replyView = await this.fetch<{
-            data: ThreadPostViewDB;
-            hash: string;
-            createdAt: string;
-            modifiedAt: string;
-            id: string;
-            version: string;
-            snapshotset: string;
-          }>("thread_post_view", replyUri);
+          const replyView = await this.fetch<ThreadPostViewDB>("thread_post_view", replyUri);
           if (replyView) {
             result.push(replyView);
             // Process this reply's replies
@@ -566,8 +600,8 @@ export class FlatfileDataStore extends BaseDataStore {
       const snapshotDirs = dirents.filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
 
       const snapshots = [];
-      for (const id of snapshotDirs) {
-        const metaFile = path.join(snapshotsDir, id, "meta.json");
+      for (const safeDirName of snapshotDirs) {
+        const metaFile = path.join(snapshotsDir, safeDirName, "meta.json");
 
         // Check if meta file exists
         try {
@@ -575,14 +609,14 @@ export class FlatfileDataStore extends BaseDataStore {
           const metaContent = await fs.readFile(metaFile, "utf8");
           const meta = JSON.parse(metaContent);
           snapshots.push({
-            id,
+            id: meta.id || safeDirName, // Use original ID if available
             createdAt: meta.createdAt,
           });
         } catch {
           // If no meta file, use folder creation time
-          const stats = await fs.stat(path.join(snapshotsDir, id));
+          const stats = await fs.stat(path.join(snapshotsDir, safeDirName));
           snapshots.push({
-            id,
+            id: safeDirName,
             createdAt: stats.birthtime.toISOString(),
           });
         }
@@ -601,7 +635,8 @@ export class FlatfileDataStore extends BaseDataStore {
    */
   async deleteSnapshot(snapshotId: string): Promise<boolean> {
     try {
-      const snapshotDir = path.join(this.baseDir, "snapshots", snapshotId);
+      const safeSnapshotId = this.sanitizeId(snapshotId);
+      const snapshotDir = path.join(this.baseDir, "snapshots", safeSnapshotId);
 
       // Check if snapshot directory exists
       try {
@@ -624,7 +659,8 @@ export class FlatfileDataStore extends BaseDataStore {
    */
   async exportSnapshot(snapshotId: string): Promise<object | null> {
     try {
-      const snapshotDir = path.join(this.baseDir, "snapshots", snapshotId);
+      const safeSnapshotId = this.sanitizeId(snapshotId);
+      const snapshotDir = path.join(this.baseDir, "snapshots", safeSnapshotId);
 
       // Check if snapshot directory exists
       try {
@@ -634,7 +670,7 @@ export class FlatfileDataStore extends BaseDataStore {
       }
 
       const snapshotData: any = {
-        id: snapshotId,
+        id: snapshotId, // Original ID
         tables: {},
       };
 
@@ -665,6 +701,12 @@ export class FlatfileDataStore extends BaseDataStore {
           const filePath = path.join(tableDir, file);
           const fileContent = await fs.readFile(filePath, "utf8");
           const fileData = JSON.parse(fileContent);
+
+          // Make sure we use original ID, not safe ID
+          if (fileData.id) {
+            fileData.id = fileData.id; // Original ID
+          }
+
           snapshotData.tables[table].push(fileData);
         }
       }
@@ -686,10 +728,11 @@ export class FlatfileDataStore extends BaseDataStore {
     }
 
     try {
+      const safeSnapshotId = this.sanitizeId(snapshotId);
       const snapshotsDir = path.join(this.baseDir, "snapshots");
       await fs.mkdir(snapshotsDir, { recursive: true });
 
-      const snapshotDir = path.join(snapshotsDir, snapshotId);
+      const snapshotDir = path.join(snapshotsDir, safeSnapshotId);
       await fs.mkdir(snapshotDir, { recursive: true });
 
       // Create metadata file
@@ -698,7 +741,8 @@ export class FlatfileDataStore extends BaseDataStore {
         metaFile,
         JSON.stringify(
           {
-            id: snapshotId,
+            id: snapshotId, // Original ID
+            safeId: safeSnapshotId, // Safe ID for files
             createdAt: snapshotData.createdAt || new Date().toISOString(),
             importedAt: new Date().toISOString(),
           },
@@ -714,9 +758,18 @@ export class FlatfileDataStore extends BaseDataStore {
 
         // Write each record to a file
         for (const record of records as any[]) {
-          const id = record.id || record._id || `import-${nanoid()}`;
-          const filePath = path.join(tableDir, `${id}.json`);
-          await fs.writeFile(filePath, JSON.stringify(record, null, 2));
+          const originalId = record.id || record._id || `import-${nanoid()}`;
+          const safeId = this.sanitizeId(originalId);
+
+          // Add safe ID to record data
+          const recordWithSafeId = {
+            ...record,
+            id: originalId, // Ensure original ID is preserved
+            safeId, // Add sanitized ID for filesystem operations
+          };
+
+          const filePath = path.join(tableDir, `${safeId}.json`);
+          await fs.writeFile(filePath, JSON.stringify(recordWithSafeId, null, 2));
         }
       }
 
@@ -732,12 +785,13 @@ export class FlatfileDataStore extends BaseDataStore {
    */
   async createSnapshot(name?: string): Promise<string> {
     const snapshotId = name || nanoid();
+    const safeSnapshotId = this.sanitizeId(snapshotId);
     const createdAt = new Date().toISOString();
 
     const snapshotsDir = path.join(this.baseDir, "snapshots");
     await fs.mkdir(snapshotsDir, { recursive: true });
 
-    const snapshotDir = path.join(snapshotsDir, snapshotId);
+    const snapshotDir = path.join(snapshotsDir, safeSnapshotId);
     await fs.mkdir(snapshotDir, { recursive: true });
 
     const metaFile = path.join(snapshotDir, "meta.json");
@@ -746,6 +800,7 @@ export class FlatfileDataStore extends BaseDataStore {
       JSON.stringify(
         {
           id: snapshotId,
+          safeId: safeSnapshotId,
           createdAt,
           name: name || snapshotId,
         },
