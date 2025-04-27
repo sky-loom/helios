@@ -3,6 +3,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
+import chalk from "chalk";
 
 const execAsync = promisify(exec);
 
@@ -26,8 +27,8 @@ async function ensureOutputDir() {
 
 // Helper function to run a command and log the result
 async function runCommand(command: string, description: string): Promise<void> {
-  console.log(`\n=== Testing: ${description} ===`);
-  console.log(`Command: ${command}`);
+  console.log(chalk.green(`\n=== Testing: ${description} ===`));
+  console.log(chalk.yellow(`Command: ${command}`));
 
   try {
     const { stdout, stderr } = await execAsync(command);
@@ -43,8 +44,8 @@ async function runCommand(command: string, description: string): Promise<void> {
     console.log(`Test completed: ${description}`);
     return Promise.resolve();
   } catch (error) {
-    console.error(`Test failed for: ${description}`);
-    console.error(error);
+    console.error(chalk.red(`Test failed for: ${description}`));
+    console.error(chalk.red(error));
     return Promise.resolve(); // Continue with other tests even after failure
   }
 }
@@ -79,7 +80,7 @@ async function runSnapshotTests() {
 
   // Test snapshot duplicate command
   await runCommand(
-    `node ./dist/index.js snapshot duplicate ${testSnapshotId} -i ${duplicateSnapshotId}`,
+    `node ./dist/index.js snapshot duplicate ${testSnapshotId} -t ${duplicateSnapshotId}`,
     `Duplicate Snapshot: ${testSnapshotId} to ${duplicateSnapshotId}`
   );
 
@@ -97,7 +98,7 @@ async function runSnapshotTests() {
 
   // Test snapshot import command (using the previously exported file)
   await runCommand(
-    `node ./dist/index.js snapshot import ${path.join(TEST_CONFIG.outputDir, "snapshot-export.json")} -i imported-${testSnapshotId}`,
+    `node ./dist/index.js snapshot import ${path.join(TEST_CONFIG.outputDir, "snapshot-export.json")} -t imported-${testSnapshotId}`,
     "Import Snapshot from File"
   );
 

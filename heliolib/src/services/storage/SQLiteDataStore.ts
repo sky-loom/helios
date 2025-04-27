@@ -190,9 +190,11 @@ export class SQLiteDataStore extends BaseDataStore {
 
     try {
       // Check if table exists
+      //console.log(`Fetching ${recordType} with id ${id} from table ${tableName}`);
       const tableExists = await db.get("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [tableName]);
-
+      //console.log(`Checking if table ${tableName} exists:`, tableExists ? "Yes" : "No");
       if (!tableExists) {
+        console.warn(`Table ${tableName} does not exist for record type ${recordType}. Returning undefined.`);
         return undefined;
       }
 
@@ -286,7 +288,7 @@ export class SQLiteDataStore extends BaseDataStore {
 
     let query: string;
     let values: any[];
-
+    await this.ensureTableExists(tableName);
     if (fieldFilter) {
       query = `SELECT * FROM ${tableName} WHERE id LIKE ? AND JSON_EXTRACT(data, '$.' || ?) = ? ORDER BY modified_at DESC`;
       values = [idPattern, fieldFilter.field, fieldFilter.value];
