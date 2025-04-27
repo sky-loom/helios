@@ -38,10 +38,17 @@ const dbPath = typeof options.sqlite === "string" ? options.sqlite : undefined;
 //   postgresConfig: { connectionString: process.env.DATABASE_URL_BSKYTOOLS ?? "" },
 // });
 
-let ds: DataStore = new DataStore({
-  type: "flatfile",
-  flatfileConfig: {
-    baseDir: "./data-test",
+// let ds: DataStore = new DataStore({
+//   type: "flatfile",
+//   flatfileConfig: {
+//     baseDir: "./data-test",
+//   },
+// });
+
+let ds = new DataStore({
+  type: "sqlite",
+  sqliteConfig: {
+    filename: "./data/database.sqlite",
   },
 });
 

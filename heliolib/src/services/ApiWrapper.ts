@@ -64,8 +64,13 @@ export class ApiWrapper {
 
     //save skeleton entry
     if (!requestParams.dryRun) {
-      !requestParams.dryRun && (await this.datastore.save(tableName, id, data as object, requestParams.snapshotSet));
-      await this.datastore.save("entry", entrydb.identity, entrydb, requestParams.snapshotSet);
+      var res = await this.datastore.save(tableName, id, data as object, requestParams.snapshotSet);
+      !res && requestParams.debugOutput && console.log(`Not Stored ${tableName} entry: ${id}`);
+      res = await this.datastore.save("entry", entrydb.identity, entrydb, requestParams.snapshotSet);
+      !res && requestParams.debugOutput && console.log(`Entry Not Stored ${tableName} entry: ${id}`);
+      if (res) {
+        requestParams.debugOutput && console.log(`Stored ${tableName} entry: ${id}`);
+      }
       return Entry.create<T>(entrydb, data);
     }
     //create full entry

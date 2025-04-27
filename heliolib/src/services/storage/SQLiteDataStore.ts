@@ -51,22 +51,6 @@ export class SQLiteDataStore extends BaseDataStore {
         modified_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS entry (
-        id TEXT NOT NULL,
-        snapshotset TEXT NOT NULL,
-        recorder TEXT NOT NULL,
-        recorded_at INTEGER NOT NULL,
-        record_type TEXT NOT NULL,
-        identity TEXT NOT NULL,
-        record TEXT NOT NULL,
-        linked_to TEXT,
-        record_version TEXT,
-        project TEXT,
-        data JSON,
-        PRIMARY KEY (id, snapshotset),
-        FOREIGN KEY (snapshotset) REFERENCES snapshotsets(snapshotset)
-      );
-
       CREATE TABLE IF NOT EXISTS follow_relationships (
         follower_did TEXT NOT NULL,
         followed_did TEXT NOT NULL,
@@ -190,6 +174,7 @@ export class SQLiteDataStore extends BaseDataStore {
 
       return { id, version: newVersion, hash };
     } catch (error) {
+      console.error(`Error saving ${recordType} with id ${id}:`, error);
       // Rollback on error
       await db.exec("ROLLBACK");
       throw error;
