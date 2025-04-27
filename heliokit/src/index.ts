@@ -38,19 +38,19 @@ const dbPath = typeof options.sqlite === "string" ? options.sqlite : undefined;
 //   postgresConfig: { connectionString: process.env.DATABASE_URL_BSKYTOOLS ?? "" },
 // });
 
-// let ds: DataStore = new DataStore({
-//   type: "flatfile",
-//   flatfileConfig: {
-//     baseDir: "./data-test",
-//   },
-// });
-
-let ds = new DataStore({
-  type: "sqlite",
-  sqliteConfig: {
-    filename: "./test-output/data/database.sqlite",
+let ds: DataStore = new DataStore({
+  type: "flatfile",
+  flatfileConfig: {
+    baseDir: "./data-test",
   },
 });
+
+// let ds = new DataStore({
+//   type: "sqlite",
+//   sqliteConfig: {
+//     filename: "./test-output/data/database.sqlite",
+//   },
+// });
 
 // Declare client variables
 let bskyClient: BskyClientManager;

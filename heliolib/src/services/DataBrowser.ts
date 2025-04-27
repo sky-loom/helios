@@ -25,6 +25,8 @@ export class DataBrowser {
   }
 
   public async AssureAvatar(profile: Entry<AppBskyActorDefs.ProfileViewDetailed>): Promise<Entry<AppBskyActorDefs.ProfileViewDetailed>> {
+    //console.log("Assuring Avatar for: ");
+    //console.log(profile);
     if (profile.record.avatar && profile.record.avatar != "") return profile;
     var avatar = await this.ds.fetchLatestAvatar(profile.record.did);
     if (avatar) {

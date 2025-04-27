@@ -173,7 +173,7 @@ export class FlatfileDataStore extends BaseDataStore {
 
     try {
       const data = await fs.readFile(filePath, "utf-8");
-      return JSON.parse(data) as T;
+      return JSON.parse(data).data as T;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         throw error;
@@ -317,7 +317,8 @@ export class FlatfileDataStore extends BaseDataStore {
   async returnAllLatestEntries<T>(recordType: string, did: string, atID: boolean = true): Promise<Entry<T>[]> {
     const idPattern = atID ? `at://${did}/` : did;
     const records = await this.searchById(recordType, idPattern);
-
+    //console.log(`Found ${records.length} records for ${recordType} with ID pattern "${idPattern}"`);
+    //console.log(records);
     const entries: Entry<T>[] = [];
 
     for (const record of records) {
@@ -327,10 +328,12 @@ export class FlatfileDataStore extends BaseDataStore {
         const entryFilePath = path.join(entryFolderPath, `${safeId}-latest.json`);
 
         const entryDataStr = await fs.readFile(entryFilePath, "utf-8");
-        const entryData = JSON.parse(entryDataStr) as EntryDB;
-
+        const entryData = JSON.parse(entryDataStr).data as EntryDB;
+        //console.log(`Loading entry metadata for ${record.id} from ${entryFilePath}`);
+        //console.log(entryData);
         if (entryData) {
-          const entry = await Entry.create<T>(entryData, record as T);
+          const entry = await Entry.create<T>(entryData, record.data as T);
+          //console.log(entry);
           entries.push(entry);
         }
       } catch (error) {
@@ -338,7 +341,7 @@ export class FlatfileDataStore extends BaseDataStore {
         console.error(`Error loading entry metadata for ${record.id}:`, error);
       }
     }
-
+    //console.log(entries);
     return entries;
   }
 
