@@ -65,11 +65,16 @@ export class DataBrowser {
     if (this.loadedPosts != did) {
       this.loadedPosts = did;
       const entryDBs = await this.ds.returnAllLatestEntries<AppBskyFeedPost.Record>("post", did);
+      //console.log("DataBrowser:GetPosts - Entries found: " + entryDBs.length);
+      //console.log("DataBrowser:GetPosts - Entries: " + JSON.stringify(entryDBs, null, 2));
+      //console.log(entryDBs);
       let data = context?.posts;
 
       if (context && data) {
         for (let entry of entryDBs) {
-          data?.set(entry.identity, await this.BuildPostView(entry));
+          //console.log("DataBrowser:GetPosts - Processing entry: " + entry.identity);
+          //console.log(await this.BuildPostView(entry));
+          data.set(entry.identity, await this.BuildPostView(entry));
         }
         context.posts = data;
         context.resultset = data;

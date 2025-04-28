@@ -12,6 +12,7 @@ import readline from "node:readline";
 import { ContextService } from "@skyloom/helios";
 import { SearchService } from "@skyloom/helios";
 import { BaseCommandOptions } from "./BaseCommandOptions.js";
+import SuperJSON from "superjson";
 
 // Initialize agents
 const publicAgent = new AtpAgent({
@@ -154,10 +155,10 @@ async function resolveIdentifier(identifier: string): Promise<string> {
 function handleOutput(data: any, options: BaseCommandOptions): void {
   if (options.output) {
     const outputPath = path.resolve(options.output);
-    fs.writeFileSync(outputPath, JSON.stringify(data, null, 2));
+    fs.writeFileSync(outputPath, SuperJSON.stringify(data));
     console.log(`Data saved to ${outputPath}`);
   } else {
-    console.log(JSON.stringify(data, null, 2));
+    console.log(SuperJSON.stringify(data));
   }
 }
 
@@ -436,6 +437,7 @@ addBaseOptions(
         let posts;
 
         posts = await db.GetPosts(did);
+        console.log(posts);
 
         handleOutput(posts, cmdOptions);
       } catch (error) {
