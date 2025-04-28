@@ -150,7 +150,11 @@ export class ApiWrapper {
   async GetFollows(did: string, params: RequestParams = new RequestParams()): Promise<PageResponse<Entry<AppBskyGraphFollow.Record>>> {
     // Get repository description to determine PDS endpoint
     let repodesc = await this.datastore.fetch<ComAtprotoRepoDescribeRepo.OutputSchema>("repo_description", did);
+    params.debugOutput && console.log(`ApiWrapper:GetFollows: Repository description for ${did}: `);
+    //params.debugOutput && console.log(repodesc);
     if (!repodesc) repodesc = (await this.GetRepoDescription(did)).record;
+    //params.debugOutput && console.log(`ApiWrapper:GetFollows: Repository description for ${did}: `);
+    //params.debugOutput && console.log(repodesc);
 
     const pds = PDSFromRepoDesc(repodesc);
     params.debugOutput && console.log(`ApiWrapper:Fetching follows from PDS: ${pds} for user ${did}`);
@@ -168,12 +172,15 @@ export class ApiWrapper {
 
       try {
         // Fetch follow records from PDS
-        const result = await this.client.pdsagents.getAgent(pds).com.atproto.repo.listRecords({
+        params.debugOutput && console.log(`ApiWrapper:Fetching follows page ${atPage}/${params.pageCount} for ${did}`);
+        var request = {
           repo: did,
           collection: "app.bsky.graph.follow",
           limit: 100,
           cursor: response.cursor,
-        });
+        };
+        params.debugOutput && console.log(`ApiWrapper:Requesting follows with params: ${JSON.stringify(request)}`);
+        const result = await this.client.pdsagents.getAgent(pds).com.atproto.repo.listRecords(request);
 
         if (result.data.records) {
           for (const record of result.data.records) {
